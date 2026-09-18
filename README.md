@@ -2,6 +2,20 @@
 
 PVE UM is a Bash script to update a Proxmox host and/or its Debian/Ubuntu LXC containers, with both an interactive menu and non-interactive flags for automation (cron, scripts, etc.).
 
+## Fast Run
+
+```sh
+sudo wget https://raw.githubusercontent.com/KirnoNTX/PVE-UM/refs/heads/main/update-manager.sh
+```
+
+```sh
+chmod +x ./update-manager.sh
+```
+
+```sh
+sudo ./update-manager.sh
+```
+
 ## Features
 
 - Updates the Proxmox host itself (`apt-get update && full-upgrade`).
@@ -19,11 +33,27 @@ PVE UM is a Bash script to update a Proxmox host and/or its Debian/Ubuntu LXC co
 - Must be run **on the Proxmox node itself** (requires the `pct` command).
 - Optional: `whiptail` or `dialog` for a nicer interactive checklist (falls back to a plain text prompt if neither is installed).
 
+## How it works
+
+1. **Discovery** (`discover_containers`): lists running containers with `pct list`, checks each one's `/etc/os-release` via `pct exec`, and keeps only Debian/Ubuntu ones. Anything stopped or on another distro is recorded as skipped.
+2. **Update** (`update_host` / `update_container`): runs the same apt sequence everywhere:
+
+   ```sh
+   apt-get update
+   apt-get full-upgrade -y   (with confdef/confold to avoid interactive prompts)
+   apt list --upgradable
+   apt-get autoremove -y && apt-get autoclean
+   ```
+
+   `DEBIAN_FRONTEND=noninteractive` and `NEEDRESTART_MODE=a` keep the whole run unattended.
+3. **Logging**: every target's full output is appended to `/var/log/update-manager-<timestamp>.log`; only the last 20 lines are shown on screen if something fails.
+4. **Summary**: at the end, prints how many targets were updated, failed, or skipped, plus the path to the full log.
+
 ## Usage
 
 ### Interactive mode
 
-```bash
+```sh
 sudo ./update-manager.sh
 ```
 
@@ -51,22 +81,6 @@ sudo ./update-manager.sh --only host,101,105  # host + specific container IDs
 ```
 
 `--only` takes a comma-separated list combining `host` and/or container VMIDs.
-
-## How it works
-
-1. **Discovery** (`discover_containers`): lists running containers with `pct list`, checks each one's `/etc/os-release` via `pct exec`, and keeps only Debian/Ubuntu ones. Anything stopped or on another distro is recorded as skipped.
-2. **Update** (`update_host` / `update_container`): runs the same apt sequence everywhere:
-
-   ```sh
-   apt-get update
-   apt-get full-upgrade -y   (with confdef/confold to avoid interactive prompts)
-   apt list --upgradable
-   apt-get autoremove -y && apt-get autoclean
-   ```
-
-   `DEBIAN_FRONTEND=noninteractive` and `NEEDRESTART_MODE=a` keep the whole run unattended.
-3. **Logging**: every target's full output is appended to `/var/log/update-manager-<timestamp>.log`; only the last 20 lines are shown on screen if something fails.
-4. **Summary**: at the end, prints how many targets were updated, failed, or skipped, plus the path to the full log.
 
 ## Notes / caveats
 
